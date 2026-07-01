@@ -197,7 +197,7 @@ async function send(){
   renderMsgs();
   try{
     const apiMsgs=msgs.map(m=>({role:m.r==='u'?'user':'assistant',content:m.t}));
-    const res=await fetch('/api/sensei.cjs',{
+    const res=await fetch('/api/sensei',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({messages:apiMsgs,role:cur.id})
