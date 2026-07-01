@@ -106,20 +106,27 @@ h1{font-size:22px;font-weight:500;color:#1a1a1a;letter-spacing:1px;margin-bottom
   <div class="msgs" id="msgs"></div>
   <div class="ci">
     <input type="text" id="inp" placeholder="Faca sua pergunta..."/>
-    <button class="sb" id="sbtn" onclick="send()">Enviar</button>
+    <button class="sb" onclick="send()">Enviar</button>
   </div>
 </div>
 
 </div>
 <script>
-const ROLES={gerente:{label:'Gerente',icon:'👔',senha:'1206'},lider:{label:'Lider',icon:'🧑‍🍳',senha:'0612'},liderado:{label:'Colaborador',icon:'👥',senha:'1312'},administrativo:{label:'Administrativo',icon:'📋',senha:'2426'}};
+const ROLES={
+  gerente:{label:'Gerente',icon:'👔',senha:'1206'},
+  lider:{label:'Lider',icon:'🧑‍🍳',senha:'0612'},
+  liderado:{label:'Colaborador',icon:'👥',senha:'1312'},
+  administrativo:{label:'Administrativo',icon:'📋',senha:'2426'}
+};
 let cur=null,pin='',msgs=[],loading=false;
 
-function logoSVG(s=28){return `<div style="width:${s}px;height:${s}px;background:#8B0000;border-radius:${Math.round(s*.2)}px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-right:8px;margin-top:2px"><svg width="${Math.round(s*.54)}" height="${Math.round(s*.54)}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>`;}
+function logoSVG(s=28){
+  return `<div class="ml"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>`;
+}
 
 function selectRole(id,senha){
   cur={id,senha,label:ROLES[id].label,icon:ROLES[id].icon};
-  pin='';updateDots(false);
+  pin=''; updateDots(false);
   document.getElementById('pinLabel').textContent=cur.icon+' '+cur.label;
   document.getElementById('perr').textContent='';
   document.getElementById('dots').classList.remove('shake');
@@ -135,7 +142,7 @@ function updateDots(err){
 
 function pk(d){
   if(pin.length>=4)return;
-  pin+=d;updateDots(false);
+  pin+=d; updateDots(false);
   if(pin.length===4)setTimeout(()=>confirmPin(),150);
 }
 function pd(){pin=pin.slice(0,-1);updateDots(false);document.getElementById('perr').textContent='';}
@@ -160,20 +167,23 @@ function goBack(){
   document.getElementById('login').classList.add('active');
   document.getElementById('pin').classList.remove('active');
   document.getElementById('chat').classList.remove('active');
-  cur=null;pin='';msgs=[];
+  cur=null; pin=''; msgs=[];
 }
 
 function md(t){
-  return t.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\*(.*?)\*/g,'<em>$1</em>').replace(/\n/g,'<br/>');
+  return t
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g,'<em>$1</em>')
+    .replace(/\n/g,'<br/>');
 }
 
 function renderMsgs(){
   const el=document.getElementById('msgs');
   el.innerHTML=msgs.map(m=>{
-    if(m.r==='a') return `<div class="msg">${logoSVG(28)}<div class="bub b">${md(m.t)}</div></div>`;
+    if(m.r==='a') return `<div class="msg">${logoSVG()}<div class="bub b">${md(m.t)}</div></div>`;
     return `<div class="msg u"><div class="bub u2">${md(m.t)}</div></div>`;
   }).join('');
-  if(loading) el.innerHTML+=`<div class="msg">${logoSVG(28)}<div class="typing"><div class="d" style="animation:pulse 1.2s 0s infinite"></div><div class="d" style="animation:pulse 1.2s .2s infinite"></div><div class="d" style="animation:pulse 1.2s .4s infinite"></div></div></div>`;
+  if(loading) el.innerHTML+=`<div class="msg">${logoSVG()}<div class="typing"><div class="d" style="animation:pulse 1.2s 0s infinite"></div><div class="d" style="animation:pulse 1.2s .2s infinite"></div><div class="d" style="animation:pulse 1.2s .4s infinite"></div></div></div>`;
   el.scrollTop=el.scrollHeight;
 }
 
@@ -194,7 +204,7 @@ async function send(){
     });
     const data=await res.json();
     msgs.push({r:'a',t:data.reply||'Erro ao processar resposta.'});
-  } catch{
+  } catch(e){
     msgs.push({r:'a',t:'Erro de conexao. Tente novamente.'});
   }
   loading=false;
