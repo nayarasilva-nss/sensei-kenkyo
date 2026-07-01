@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/sensei.cjs": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/sensei", "destination": "/api/sensei.cjs" }
+  ]
+}
