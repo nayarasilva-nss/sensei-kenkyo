@@ -1,4 +1,3 @@
-
 const NOTION_VERSION = "2022-06-28";
 const ROOT_PAGE_ID = "36dff272-8546-812c-9cb9-e53d17c5ba77"; // Central de Governanca
 
@@ -49,7 +48,7 @@ async function fetchTree(id, token, depth = 0, maxDepth = 3) {
   return result;
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { messages, role } = req.body;
