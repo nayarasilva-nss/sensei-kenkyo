@@ -85,10 +85,10 @@ async function fetchPage(id, token) {
 }
 
 async function fetchTree(id, token, depth = 0) {
-  if (depth > 2) return "";
+  if (depth > 3) return "";
   const { text, children } = await fetchPage(id, token);
   let result = text;
-  const limited = children.slice(0, 5);
+  const limited = children.slice(0, depth < 2 ? 10 : 5);
   const childContents = await Promise.all(
     limited.map(c => fetchTree(c.id, token, depth + 1)
       .then(content => content ? (c.title ? `\n--- ${c.title} ---\n${content}` : content) : ""))
