@@ -65,23 +65,9 @@ h1{font-size:22px;font-weight:500;color:#1a1a1a;letter-spacing:1px;margin-bottom
 <div class="app">
 
 <div id="login" class="active">
-  <div style="margin-bottom:1.5rem">
-    <svg width="200" viewBox="0 0 500 130" xmlns="http://www.w3.org/2000/svg">
-      <!-- Simbolo circular -->
-      <circle cx="65" cy="65" r="62" fill="#CC2229"/>
-      <!-- Fatias brancas verticais -->
-      <rect x="54" y="8" width="10" height="114" rx="5" fill="white" transform="rotate(-8 65 65)"/>
-      <rect x="70" y="12" width="8" height="106" rx="4" fill="white" transform="rotate(2 65 65)"/>
-      <rect x="83" y="20" width="6" height="88" rx="3" fill="white" transform="rotate(12 65 65)"/>
-      <!-- Mascara para cortar lado direito do circulo -->
-      <rect x="90" y="0" width="80" height="130" fill="white"/>
-      <!-- Texto kenkyo -->
-      <text x="150" y="82" font-family="Georgia, serif" font-size="72" font-weight="400" fill="#555555" letter-spacing="4">kenkyo</text>
-      <!-- Texto COZINHA ORIENTAL -->
-      <text x="153" y="108" font-family="Arial, sans-serif" font-size="18" font-weight="300" fill="#555555" letter-spacing="8">COZINHA ORIENTAL</text>
-    </svg>
-  </div>
-  <p class="sub" style="margin-top:-1rem">Assistente interno</p>
+  <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+  <h1>Sensei</h1>
+  <p class="sub">Assistente interno Kenkyo</p>
   <p class="lbl">Selecione seu cargo</p>
   <div class="roles">
     <button class="role-btn" onclick="selectRole('gerente','1206')"><div class="ri">👔</div><div class="rn">Gerente</div><div class="rd">Acesso total</div></button>
@@ -93,15 +79,7 @@ h1{font-size:22px;font-weight:500;color:#1a1a1a;letter-spacing:1px;margin-bottom
 </div>
 
 <div id="pin">
-  <svg width="140" viewBox="0 0 500 130" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:8px">
-    <circle cx="65" cy="65" r="62" fill="#CC2229"/>
-    <rect x="54" y="8" width="10" height="114" rx="5" fill="white" transform="rotate(-8 65 65)"/>
-    <rect x="70" y="12" width="8" height="106" rx="4" fill="white" transform="rotate(2 65 65)"/>
-    <rect x="83" y="20" width="6" height="88" rx="3" fill="white" transform="rotate(12 65 65)"/>
-    <rect x="90" y="0" width="80" height="130" fill="white"/>
-    <text x="150" y="82" font-family="Georgia, serif" font-size="72" fill="#555555" letter-spacing="4">kenkyo</text>
-    <text x="153" y="108" font-family="Arial, sans-serif" font-size="18" fill="#555555" letter-spacing="8">COZINHA ORIENTAL</text>
-  </svg>
+  <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
   <p class="pr" id="pinLabel"></p>
   <p class="ph">Digite a senha de acesso</p>
   <div class="dots" id="dots">
@@ -120,7 +98,7 @@ h1{font-size:22px;font-weight:500;color:#1a1a1a;letter-spacing:1px;margin-bottom
 <div id="chat">
   <div class="ch">
     <div class="chl">
-      <div style="width:32px;height:32px;border-radius:7px;background:#CC2229;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" viewBox="0 0 130 130" xmlns="http://www.w3.org/2000/svg"><circle cx="65" cy="65" r="62" fill="white" opacity="0.3"/><rect x="54" y="8" width="10" height="114" rx="5" fill="white" transform="rotate(-8 65 65)"/><rect x="70" y="12" width="8" height="106" rx="4" fill="white" transform="rotate(2 65 65)"/><rect x="83" y="20" width="6" height="88" rx="3" fill="white" transform="rotate(12 65 65)"/></svg></div>
+      <div class="logo" style="width:32px;height:32px;border-radius:7px;margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:17px;height:17px"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
       <div><div class="clt">Sensei</div><div class="clr" id="chatRole"></div></div>
     </div>
     <button class="exit" onclick="goBack()">Sair</button>
@@ -142,7 +120,7 @@ const ROLES={
 };
 let cur=null,pin='',msgs=[],loading=false;
 
-function logoSVG(s=28){
+function logoSVG(){
   return `<div class="ml"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>`;
 }
 
