@@ -47,14 +47,31 @@ async function fetchPage(id, token) {
     let text = "";
     let children = [];
     for (const b of data.results) {
-      const block = b[b.type];
+      const type = b.type;
+      const block = b[type];
+
+      // Texto normal
       if (block?.rich_text) {
         const line = block.rich_text.map(t => t.plain_text).join("");
         if (line) text += line + "\n";
       }
-      if (b.type === "child_page") {
+
+      // Tabelas
+      if (type === "table") {
+        children.push({ id: b.id, title: "", isTable: true });
+      }
+
+      // Linhas de tabela
+      if (type === "table_row") {
+        const cells = block.cells || [];
+        const row = cells.map(cell => cell.map(t => t.plain_text).join("")).join(" | ");
+        if (row) text += row + "\n";
+      }
+
+      // Subpaginas e blocos com filhos
+      if (type === "child_page") {
         children.push({ id: b.id, title: b.child_page?.title || "" });
-      } else if (b.has_children) {
+      } else if (b.has_children && type !== "child_page" && type !== "table") {
         children.push({ id: b.id, title: "" });
       }
     }
