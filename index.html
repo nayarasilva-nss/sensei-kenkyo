@@ -11,8 +11,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 #login,#pin{display:none;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1.5rem;min-height:560px}
 #login.active,#pin.active{display:flex}
 #chat{display:none;flex-direction:column;height:560px}
-#chat.active{display:flex;flex:1;overflow:hidden}
-.msgs{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:1rem;display:flex;flex-direction:column;gap:12px}
+#chat.active{display:flex}
 .logo{width:48px;height:48px;background:#8B0000;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;flex-shrink:0}
 .logo svg{width:26px;height:26px}
 h1{font-size:22px;font-weight:500;color:#1a1a1a;letter-spacing:1px;margin-bottom:4px}
@@ -143,8 +142,8 @@ const ROLES={
 };
 let cur=null,pin='',msgs=[],loading=false;
 
-function logoSVG(){
-  return `<div class="ml" style="background:#CC2229;border-radius:6px"><svg width="16" viewBox="0 0 130 130" xmlns="http://www.w3.org/2000/svg"><rect x="54" y="8" width="10" height="114" rx="5" fill="white" transform="rotate(-8 65 65)"/><rect x="70" y="12" width="8" height="106" rx="4" fill="white" transform="rotate(2 65 65)"/><rect x="83" y="20" width="6" height="88" rx="3" fill="white" transform="rotate(12 65 65)"/></svg></div>`;
+function logoSVG(s=28){
+  return `<div class="ml"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>`;
 }
 
 function selectRole(id,senha){
