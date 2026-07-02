@@ -115,7 +115,7 @@ Responda sempre em portugues brasileiro, de forma direta e acolhedora.`;
       "x-api-key": ANTHROPIC,
       "anthropic-version": "2023-06-01"
     }, {
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-5",
       max_tokens: 1000,
       system,
       messages
