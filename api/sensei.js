@@ -63,13 +63,15 @@ async function fetchPage(id, token) {
 }
 
 async function fetchTree(id, token, depth = 0) {
-  if (depth > 3) return "";
+  if (depth > 2) return "";
   const { text, children } = await fetchPage(id, token);
   let result = text;
-  for (const c of children.slice(0, 10)) {
-    const content = await fetchTree(c.id, token, depth + 1);
-    if (content) result += (c.title ? `\n--- ${c.title} ---\n` : "\n") + content;
-  }
+  const limited = children.slice(0, 5);
+  const childContents = await Promise.all(
+    limited.map(c => fetchTree(c.id, token, depth + 1)
+      .then(content => content ? (c.title ? `\n--- ${c.title} ---\n${content}` : content) : ""))
+  );
+  result += childContents.filter(Boolean).join("\n");
   return result;
 }
 
