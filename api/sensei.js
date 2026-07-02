@@ -121,9 +121,17 @@ Responda sempre em portugues brasileiro, de forma direta e acolhedora.`;
       messages
     });
 
+    console.log("AI response:", JSON.stringify(aiData).slice(0, 300));
+
+    if (aiData.error) {
+      console.error("AI error:", aiData.error);
+      return res.status(500).json({ error: "Erro da IA: " + aiData.error.message });
+    }
+
     const reply = aiData.content?.[0]?.text || "Erro ao processar resposta.";
     res.status(200).json({ reply });
   } catch (e) {
+    console.error("Catch error:", e.message);
     res.status(500).json({ error: "Erro interno: " + e.message });
   }
 }
