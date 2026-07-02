@@ -14,9 +14,12 @@ function httpsGet(path, token) {
         "Notion-Version": NOTION_VERSION
       }
     }, (res) => {
-      let raw = "";
-      res.on("data", c => raw += c);
-      res.on("end", () => { try { resolve(JSON.parse(raw)); } catch { resolve({}); } });
+      const chunks = [];
+      res.on("data", c => chunks.push(c));
+      res.on("end", () => {
+        try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8"))); }
+        catch { resolve({}); }
+      });
     });
     req.on("error", () => resolve({}));
     req.end();
@@ -25,14 +28,17 @@ function httpsGet(path, token) {
 
 function httpsPost(hostname, path, headers, body) {
   return new Promise((resolve, reject) => {
-    const data = JSON.stringify(body);
+    const data = Buffer.from(JSON.stringify(body), "utf8");
     const req = https.request({
       hostname, path, method: "POST",
-      headers: { ...headers, "Content-Length": Buffer.byteLength(data) }
+      headers: { ...headers, "Content-Length": data.length }
     }, (res) => {
-      let raw = "";
-      res.on("data", c => raw += c);
-      res.on("end", () => { try { resolve(JSON.parse(raw)); } catch { resolve({}); } });
+      const chunks = [];
+      res.on("data", c => chunks.push(c));
+      res.on("end", () => {
+        try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8"))); }
+        catch { resolve({}); }
+      });
     });
     req.on("error", reject);
     req.write(data);
@@ -46,6 +52,7 @@ async function fetchPage(id, token) {
     if (!data.results) return { text: "", children: [] };
     let text = "";
     let children = [];
+
     for (const b of data.results) {
       const type = b.type;
       const block = b[type];
@@ -56,7 +63,7 @@ async function fetchPage(id, token) {
         if (line) text += line + "\n";
       }
 
-      // Tabelas: busca filhos (table_row) imediatamente
+      // Tabelas: busca filhos (table_row) separadamente
       if (type === "table") {
         try {
           const tableData = await httpsGet(`/v1/blocks/${b.id}/children?page_size=100`, token);
@@ -73,7 +80,7 @@ async function fetchPage(id, token) {
         continue;
       }
 
-      // Subpaginas
+      // Subpaginas e blocos com filhos
       if (type === "child_page") {
         children.push({ id: b.id, title: b.child_page?.title || "" });
       } else if (b.has_children && type !== "child_page") {
@@ -143,17 +150,13 @@ Responda sempre em portugues brasileiro, de forma direta e acolhedora.`;
       messages
     });
 
-    console.log("AI response:", JSON.stringify(aiData).slice(0, 300));
-
     if (aiData.error) {
-      console.error("AI error:", aiData.error);
       return res.status(500).json({ error: "Erro da IA: " + aiData.error.message });
     }
 
     const reply = aiData.content?.[0]?.text || "Erro ao processar resposta.";
     res.status(200).json({ reply });
   } catch (e) {
-    console.error("Catch error:", e.message);
     res.status(500).json({ error: "Erro interno: " + e.message });
   }
 }
