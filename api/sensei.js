@@ -56,22 +56,27 @@ async function fetchPage(id, token) {
         if (line) text += line + "\n";
       }
 
-      // Tabelas
+      // Tabelas: busca filhos (table_row) imediatamente
       if (type === "table") {
-        children.push({ id: b.id, title: "", isTable: true });
+        try {
+          const tableData = await httpsGet(`/v1/blocks/${b.id}/children?page_size=100`, token);
+          if (tableData.results) {
+            for (const row of tableData.results) {
+              if (row.type === "table_row") {
+                const cells = row.table_row?.cells || [];
+                const rowText = cells.map(cell => cell.map(t => t.plain_text).join("")).join(" | ");
+                if (rowText) text += rowText + "\n";
+              }
+            }
+          }
+        } catch {}
+        continue;
       }
 
-      // Linhas de tabela
-      if (type === "table_row") {
-        const cells = block.cells || [];
-        const row = cells.map(cell => cell.map(t => t.plain_text).join("")).join(" | ");
-        if (row) text += row + "\n";
-      }
-
-      // Subpaginas e blocos com filhos
+      // Subpaginas
       if (type === "child_page") {
         children.push({ id: b.id, title: b.child_page?.title || "" });
-      } else if (b.has_children && type !== "child_page" && type !== "table") {
+      } else if (b.has_children && type !== "child_page") {
         children.push({ id: b.id, title: "" });
       }
     }
