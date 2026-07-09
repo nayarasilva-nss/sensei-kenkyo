@@ -150,13 +150,17 @@ Responda sempre em portugues brasileiro, de forma direta e acolhedora.`;
       messages
     });
 
+    console.log("AI RAW:", JSON.stringify(aiData).slice(0, 500));
+
     if (aiData.error) {
+      console.error("AI ERROR:", JSON.stringify(aiData.error));
       return res.status(500).json({ error: "Erro da IA: " + aiData.error.message });
     }
 
     const reply = aiData.content?.[0]?.text || "Erro ao processar resposta.";
-    res.status(200).json({ reply });
+    return res.status(200).json({ reply });
   } catch (e) {
-    res.status(500).json({ error: "Erro interno: " + e.message });
+    console.error("ERRO CATCH:", e.message, e.stack);
+    return res.status(500).json({ error: "Erro interno: " + e.message });
   }
 }
