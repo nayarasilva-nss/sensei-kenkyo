@@ -70,10 +70,10 @@ h1{font-size:22px;font-weight:500;color:#1a1a1a;letter-spacing:1px;margin-bottom
   <p class="sub">Assistente interno Kenkyo</p>
   <p class="lbl">Selecione seu cargo</p>
   <div class="roles">
-    <button class="role-btn" onclick="selectRole('gerente','1206')"><div class="ri">👔</div><div class="rn">Gerente</div><div class="rd">Acesso total</div></button>
-    <button class="role-btn" onclick="selectRole('lider','0612')"><div class="ri">🧑‍🍳</div><div class="rn">Lider</div><div class="rd">Operacoes e equipe</div></button>
-    <button class="role-btn" onclick="selectRole('liderado','1312')"><div class="ri">👥</div><div class="rn">Colaborador</div><div class="rd">Duvidas do dia a dia</div></button>
-    <button class="role-btn" onclick="selectRole('administrativo','2426')"><div class="ri">📋</div><div class="rn">Administrativo</div><div class="rd">Processos administrativos</div></button>
+    <button class="role-btn" onclick="selectRole('gerente')"><div class="ri">👔</div><div class="rn">Gerente</div><div class="rd">Acesso total</div></button>
+    <button class="role-btn" onclick="selectRole('lider')"><div class="ri">🧑‍🍳</div><div class="rn">Lider</div><div class="rd">Operacoes e equipe</div></button>
+    <button class="role-btn" onclick="selectRole('liderado')"><div class="ri">👥</div><div class="rn">Colaborador</div><div class="rd">Duvidas do dia a dia</div></button>
+    <button class="role-btn" onclick="selectRole('administrativo')"><div class="ri">📋</div><div class="rn">Administrativo</div><div class="rd">Processos administrativos</div></button>
   </div>
   <p class="ft">Kenkyo Cozinha Oriental &bull; Uso interno</p>
 </div>
@@ -113,19 +113,19 @@ h1{font-size:22px;font-weight:500;color:#1a1a1a;letter-spacing:1px;margin-bottom
 </div>
 <script>
 const ROLES={
-  gerente:{label:'Gerente',icon:'👔',senha:'1206'},
-  lider:{label:'Lider',icon:'🧑‍🍳',senha:'0612'},
-  liderado:{label:'Colaborador',icon:'👥',senha:'1312'},
-  administrativo:{label:'Administrativo',icon:'📋',senha:'2426'}
+  gerente:{label:'Gerente',icon:'👔'},
+  lider:{label:'Lider',icon:'🧑‍🍳'},
+  liderado:{label:'Colaborador',icon:'👥'},
+  administrativo:{label:'Administrativo',icon:'📋'}
 };
-let cur=null,pin='',msgs=[],loading=false;
+let cur=null,pin='',msgs=[],loading=false,token=null,checkingPin=false;
 
 function logoSVG(){
   return `<div class="ml"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>`;
 }
 
-function selectRole(id,senha){
-  cur={id,senha,label:ROLES[id].label,icon:ROLES[id].icon};
+function selectRole(id){
+  cur={id,label:ROLES[id].label,icon:ROLES[id].icon};
   pin=''; updateDots(false);
   document.getElementById('pinLabel').textContent=cur.icon+' '+cur.label;
   document.getElementById('perr').textContent='';
@@ -141,33 +141,51 @@ function updateDots(err){
 }
 
 function pk(d){
-  if(pin.length>=4)return;
+  if(pin.length>=4||checkingPin)return;
   pin+=d; updateDots(false);
   if(pin.length===4)setTimeout(()=>confirmPin(),150);
 }
 function pd(){pin=pin.slice(0,-1);updateDots(false);document.getElementById('perr').textContent='';}
 
-function confirmPin(){
-  if(pin===cur.senha){
-    msgs=[{r:'a',t:'Ola! Sou o **Sensei**, assistente interno do Kenkyo. Estou aqui para ajudar com duvidas sobre regras, processos e procedimentos internos. Como posso te ajudar hoje?'}];
-    document.getElementById('chatRole').textContent=cur.icon+' '+cur.label;
-    renderMsgs();
-    document.getElementById('pin').classList.remove('active');
-    document.getElementById('chat').classList.add('active');
-  } else {
-    document.getElementById('perr').textContent='Senha incorreta. Tente novamente.';
-    updateDots(true);
-    const dots=document.getElementById('dots');
-    dots.classList.add('shake');
-    setTimeout(()=>{dots.classList.remove('shake');pin='';updateDots(false);},500);
+async function confirmPin(){
+  checkingPin=true;
+  document.getElementById('perr').textContent='';
+  try{
+    const res=await fetch('/api/sensei',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'login',role:cur.id,pin})
+    });
+    const data=await res.json();
+    if(res.ok&&data.token){
+      token=data.token;
+      msgs=[{r:'a',t:'Ola! Sou o **Sensei**, assistente interno do Kenkyo. Estou aqui para ajudar com duvidas sobre regras, processos e procedimentos internos. Como posso te ajudar hoje?'}];
+      document.getElementById('chatRole').textContent=cur.icon+' '+cur.label;
+      renderMsgs();
+      document.getElementById('pin').classList.remove('active');
+      document.getElementById('chat').classList.add('active');
+    } else {
+      pinError();
+    }
+  } catch(e){
+    pinError();
   }
+  checkingPin=false;
+}
+
+function pinError(){
+  document.getElementById('perr').textContent='Senha incorreta. Tente novamente.';
+  updateDots(true);
+  const dots=document.getElementById('dots');
+  dots.classList.add('shake');
+  setTimeout(()=>{dots.classList.remove('shake');pin='';updateDots(false);},500);
 }
 
 function goBack(){
   document.getElementById('login').classList.add('active');
   document.getElementById('pin').classList.remove('active');
   document.getElementById('chat').classList.remove('active');
-  cur=null; pin=''; msgs=[];
+  cur=null; pin=''; msgs=[]; token=null;
 }
 
 function md(t){
@@ -199,11 +217,15 @@ async function send(){
     const apiMsgs=msgs.map(m=>({role:m.r==='u'?'user':'assistant',content:m.t}));
     const res=await fetch('/api/sensei',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({messages:apiMsgs,role:cur.id})
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({messages:apiMsgs})
     });
-    const data=await res.json();
-    msgs.push({r:'a',t:data.reply||'Erro ao processar resposta.'});
+    if(res.status===401){
+      msgs.push({r:'a',t:'Sua sessao expirou. Saia e faca login novamente.'});
+    } else {
+      const data=await res.json();
+      msgs.push({r:'a',t:data.reply||'Erro ao processar resposta.'});
+    }
   } catch(e){
     msgs.push({r:'a',t:'Erro de conexao. Tente novamente.'});
   }

@@ -1,7 +1,42 @@
 import https from "node:https";
+import crypto from "node:crypto";
 
 const NOTION_VERSION = "2022-06-28";
 const ROOT_PAGE_ID = "36dff272-8546-812c-9cb9-e53d17c5ba77";
+
+const SESSION_TTL_MS = 4 * 60 * 60 * 1000; // 4 horas
+
+const PINS = {
+  gerente: process.env.PIN_GERENTE,
+  lider: process.env.PIN_LIDER,
+  liderado: process.env.PIN_LIDERADO,
+  administrativo: process.env.PIN_ADMINISTRATIVO,
+};
+
+function sign(payload) {
+  const secret = process.env.SESSION_SECRET;
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const sig = crypto.createHmac("sha256", secret).update(body).digest("base64url");
+  return `${body}.${sig}`;
+}
+
+function verifyToken(token) {
+  const secret = process.env.SESSION_SECRET;
+  if (!token || !secret) return null;
+  const [body, sig] = token.split(".");
+  if (!body || !sig) return null;
+  const expected = crypto.createHmac("sha256", secret).update(body).digest("base64url");
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+    if (!payload.role || !payload.exp || payload.exp < Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
 
 function httpsGet(path, token) {
   return new Promise((resolve) => {
@@ -107,7 +142,41 @@ async function fetchTree(id, token, depth = 0) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { messages, role } = req.body;
+  if (!process.env.SESSION_SECRET) {
+    return res.status(500).json({ error: "SESSION_SECRET nao configurado." });
+  }
+
+  const body = req.body || {};
+
+  // Etapa de login: verifica PIN no servidor e devolve um token assinado.
+  if (body.action === "login") {
+    const { role, pin } = body;
+    const expected = PINS[role];
+    if (!expected || typeof pin !== "string" || pin.length !== 4 || !PINS.hasOwnProperty(role)) {
+      return res.status(401).json({ error: "Cargo ou senha invalidos." });
+    }
+    const a = Buffer.from(pin);
+    const b = Buffer.from(expected);
+    const ok = a.length === b.length && crypto.timingSafeEqual(a, b);
+    if (!ok) return res.status(401).json({ error: "Senha incorreta." });
+
+    const token = sign({ role, exp: Date.now() + SESSION_TTL_MS });
+    return res.status(200).json({ token, role });
+  }
+
+  // Etapa de chat: exige um token de sessao valido emitido no login.
+  const authHeader = req.headers["authorization"] || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const session = verifyToken(token);
+  if (!session) {
+    return res.status(401).json({ error: "Sessao invalida ou expirada. Faca login novamente." });
+  }
+  const role = session.role;
+  const { messages } = body;
+  if (!Array.isArray(messages)) {
+    return res.status(400).json({ error: "Mensagens invalidas." });
+  }
+
   const TOKEN = process.env.NOTION_TOKEN;
   const ANTHROPIC = process.env.ANTHROPIC_API_KEY;
 
