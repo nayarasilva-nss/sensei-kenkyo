@@ -63,10 +63,15 @@ h1{font-size:22px;font-weight:500;color:#1a1a1a;letter-spacing:1px;margin-bottom
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="sensei-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+  </symbol>
+</svg>
 <div class="app">
 
 <div id="login" class="active">
-  <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+  <div class="logo"><svg><use href="#sensei-icon"/></svg></div>
   <h1>Sensei</h1>
   <p class="sub">Assistente interno Kenkyo</p>
   <p class="lbl">Selecione seu cargo</p>
@@ -80,7 +85,7 @@ h1{font-size:22px;font-weight:500;color:#1a1a1a;letter-spacing:1px;margin-bottom
 </div>
 
 <div id="pin">
-  <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+  <div class="logo"><svg><use href="#sensei-icon"/></svg></div>
   <p class="pr" id="pinLabel"></p>
   <p class="ph">Digite a senha de acesso</p>
   <div class="dots" id="dots">
@@ -99,7 +104,7 @@ h1{font-size:22px;font-weight:500;color:#1a1a1a;letter-spacing:1px;margin-bottom
 <div id="chat">
   <div class="ch">
     <div class="chl">
-      <div class="logo" style="width:32px;height:32px;border-radius:7px;margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:17px;height:17px"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+      <div class="logo" style="width:32px;height:32px;border-radius:7px;margin:0"><svg style="width:17px;height:17px"><use href="#sensei-icon"/></svg></div>
       <div><div class="clt">Sensei</div><div class="clr" id="chatRole"></div></div>
     </div>
     <button class="exit" onclick="goBack()">Sair</button>
@@ -122,7 +127,7 @@ const ROLES={
 let cur=null,pin='',msgs=[],loading=false,token=null,checkingPin=false;
 
 function logoSVG(){
-  return `<div class="ml"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>`;
+  return `<div class="ml"><svg><use href="#sensei-icon"/></svg></div>`;
 }
 
 function selectRole(id){

@@ -235,17 +235,15 @@ Responda sempre em portugues brasileiro, de forma direta e acolhedora.`;
       messages
     });
 
-    console.log("AI RAW:", JSON.stringify(aiData).slice(0, 500));
-
     if (aiData.error) {
-      console.error("AI ERROR:", JSON.stringify(aiData.error));
-      return res.status(500).json({ error: "Erro da IA: " + aiData.error.message });
+      console.error("Anthropic API error:", aiData.error);
+      return res.status(502).json({ error: "Nao foi possivel obter resposta da IA. Tente novamente em instantes." });
     }
 
     const reply = aiData.content?.[0]?.text || "Erro ao processar resposta.";
     return res.status(200).json({ reply });
   } catch (e) {
-    console.error("ERRO CATCH:", e.message, e.stack);
-    return res.status(500).json({ error: "Erro interno: " + e.message });
+    console.error("Sensei handler error:", e);
+    return res.status(500).json({ error: "Erro interno. Tente novamente em instantes." });
   }
 }
