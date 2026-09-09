@@ -7,19 +7,81 @@ const ROOT_PAGE_ID = "36dff272-8546-812c-9cb9-e53d17c5ba77";
 const SESSION_TTL_MS = 60 * 60 * 1000; // 1 hora
 const NOTION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
-// Cache em memoria da instancia da funcao. Reduz buscas repetidas ao Notion
-// enquanto a instancia estiver quente, mas nao e compartilhado entre
-// instancias/regioes diferentes (limitacao do modelo serverless).
-let notionCache = { content: null, fetchedAt: 0 };
+// Cache em memoria da instancia da funcao, um por cargo (o conteudo filtrado
+// e diferente para cada um). Reduz buscas repetidas ao Notion enquanto a
+// instancia estiver quente, mas nao e compartilhado entre instancias/regioes
+// diferentes (limitacao do modelo serverless).
+const notionCache = new Map(); // role -> { content, fetchedAt }
 
-async function getNotionContent(token) {
+async function getNotionContent(token, role) {
   const now = Date.now();
-  if (notionCache.content && now - notionCache.fetchedAt < NOTION_CACHE_TTL_MS) {
-    return notionCache.content;
+  const cached = notionCache.get(role);
+  if (cached && now - cached.fetchedAt < NOTION_CACHE_TTL_MS) {
+    return cached.content;
   }
-  const content = await fetchTree(ROOT_PAGE_ID, token);
-  notionCache = { content, fetchedAt: now };
+  const content = await fetchTree(ROOT_PAGE_ID, token, 0, role, null);
+  notionCache.set(role, { content, fetchedAt: now });
   return content;
+}
+
+// Filtragem real de conteudo por cargo, baseada no TITULO de cada secao do
+// Notion (nao apenas instrucao de prompt): uma secao cujo titulo bate com uma
+// regra de bloqueio nunca chega a ser buscada nem enviada a IA para aquele
+// cargo. Isso e best-effort a partir dos titulos das paginas — se a estrutura
+// do Notion mudar ou algo relevante ficar fora dessas listas, ajuste os
+// padroes abaixo. Teste apos qualquer mudanca pedindo, logada como o cargo
+// mais restrito, para "repetir a base de conhecimento" (foi assim que o
+// vazamento original foi encontrado).
+
+// Colaborador: lista de PERMISSAO (so entra o que bate aqui).
+const LIDERADO_ALLOW = [
+  /f[eé]rias/i,
+  /falta/i,
+  /atestado/i,
+  /\bponto\b/i,
+  /conduta/i,
+  /benef[ií]cio/i,
+  /aus[eê]ncia/i,
+  /disciplinar/i,
+  /cargo/i,
+  /pphos?/i,
+  /\bpop\b|procedimento operacional/i,
+  /manua(l|is)/i,
+];
+
+// Lider: lista de BLOQUEIO (tudo entra, exceto isto) — sem dados financeiros
+// nem de estrutura/governanca estrategica.
+const RESTRICTED_FOR_LIDER = [
+  /governan[cç]a/i,
+  /organiza[cç][aã]o\s*&?\s*pessoas/i,
+  /unidades\s*&?\s*lideran[cç]as/i,
+  /gerencial/i,
+  /financeir/i,
+  /faturamento/i,
+  /\bdre\b/i,
+  /lucro|margem/i,
+  /societ[aá]rio/i,
+];
+
+// Administrativo: lista de BLOQUEIO, mais restrita que a do lider em RH/estrategia,
+// mas sem bloquear "financeiro" de forma ampla pois o cargo lida com contas a pagar.
+const RESTRICTED_FOR_ADMINISTRATIVO = [
+  /governan[cç]a/i,
+  /organiza[cç][aã]o\s*&?\s*pessoas/i,
+  /unidades\s*&?\s*lideran[cç]as/i,
+  /gerencial/i,
+  /\bdre\b/i,
+  /lucro|margem/i,
+  /societ[aá]rio/i,
+];
+
+function roleAllowsSection(title, role) {
+  if (role === "gerente") return true;
+  if (!title) return true; // texto de nivel superior sem titulo proprio (introducao)
+  if (role === "liderado") return LIDERADO_ALLOW.some(re => re.test(title));
+  if (role === "lider") return !RESTRICTED_FOR_LIDER.some(re => re.test(title));
+  if (role === "administrativo") return !RESTRICTED_FOR_ADMINISTRATIVO.some(re => re.test(title));
+  return false;
 }
 
 const PINS = {
@@ -186,13 +248,14 @@ async function fetchPage(id, token) {
   } catch { return { text: "", children: [] }; }
 }
 
-async function fetchTree(id, token, depth = 0) {
+async function fetchTree(id, token, depth = 0, role = "gerente", sectionTitle = null) {
   if (depth > 3) return "";
+  if (!roleAllowsSection(sectionTitle, role)) return "";
   const { text, children } = await fetchPage(id, token);
   let result = text;
   const limited = children.slice(0, depth < 2 ? 10 : 5);
   const childContents = await Promise.all(
-    limited.map(c => fetchTree(c.id, token, depth + 1)
+    limited.map(c => fetchTree(c.id, token, depth + 1, role, c.title || sectionTitle)
       .then(content => content ? (c.title ? `\n--- ${c.title} ---\n${content}` : content) : ""))
   );
   result += childContents.filter(Boolean).join("\n");
@@ -254,7 +317,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Variaveis de ambiente nao configuradas." });
   }
 
-  const notionContent = await getNotionContent(TOKEN);
+  const notionContent = await getNotionContent(TOKEN, role);
 
   const accessDesc = {
     gerente: "GERENTE - acesso total a todas as informacoes da empresa.",
