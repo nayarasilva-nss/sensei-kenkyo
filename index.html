@@ -171,7 +171,7 @@ async function confirmPin(){
       document.getElementById('pin').classList.remove('active');
       document.getElementById('chat').classList.add('active');
     } else {
-      pinError();
+      pinError(res.status===429?data.error:null);
     }
   } catch(e){
     pinError();
@@ -179,8 +179,8 @@ async function confirmPin(){
   checkingPin=false;
 }
 
-function pinError(){
-  document.getElementById('perr').textContent='Senha incorreta. Tente novamente.';
+function pinError(msg){
+  document.getElementById('perr').textContent=msg||'Senha incorreta. Tente novamente.';
   updateDots(true);
   const dots=document.getElementById('dots');
   dots.classList.add('shake');

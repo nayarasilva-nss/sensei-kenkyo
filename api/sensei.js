@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 const NOTION_VERSION = "2022-06-28";
 const ROOT_PAGE_ID = "36dff272-8546-812c-9cb9-e53d17c5ba77";
 
-const SESSION_TTL_MS = 4 * 60 * 60 * 1000; // 4 horas
+const SESSION_TTL_MS = 60 * 60 * 1000; // 1 hora
 const NOTION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 // Cache em memoria da instancia da funcao. Reduz buscas repetidas ao Notion
@@ -28,6 +28,43 @@ const PINS = {
   liderado: process.env.PIN_LIDERADO,
   administrativo: process.env.PIN_ADMINISTRATIVO,
 };
+
+// Limite de tentativas de login por IP, em memoria da instancia da funcao.
+// Nao e' a prova de bala (reseta em cold start, nao e compartilhado entre
+// instancias), mas ja inviabiliza forca bruta casual sem custo extra.
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutos
+const loginAttempts = new Map();
+
+function getClientIp(req) {
+  const fwd = req.headers["x-forwarded-for"];
+  if (typeof fwd === "string" && fwd.length) return fwd.split(",")[0].trim();
+  return req.socket?.remoteAddress || "unknown";
+}
+
+function isRateLimited(ip) {
+  const entry = loginAttempts.get(ip);
+  if (!entry) return false;
+  if (Date.now() - entry.windowStart > LOGIN_WINDOW_MS) {
+    loginAttempts.delete(ip);
+    return false;
+  }
+  return entry.count >= LOGIN_MAX_ATTEMPTS;
+}
+
+function registerFailedAttempt(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now - entry.windowStart > LOGIN_WINDOW_MS) {
+    loginAttempts.set(ip, { count: 1, windowStart: now });
+  } else {
+    entry.count += 1;
+  }
+}
+
+function clearAttempts(ip) {
+  loginAttempts.delete(ip);
+}
 
 function sign(payload) {
   const secret = process.env.SESSION_SECRET;
@@ -54,12 +91,16 @@ function verifyToken(token) {
   }
 }
 
+const NOTION_TIMEOUT_MS = 6000;
+const ANTHROPIC_TIMEOUT_MS = 25000;
+
 function httpsGet(path, token) {
   return new Promise((resolve) => {
     const req = https.request({
       hostname: "api.notion.com",
       path,
       method: "GET",
+      timeout: NOTION_TIMEOUT_MS,
       headers: {
         "Authorization": "Bearer " + token,
         "Notion-Version": NOTION_VERSION
@@ -72,6 +113,7 @@ function httpsGet(path, token) {
         catch { resolve({}); }
       });
     });
+    req.on("timeout", () => req.destroy());
     req.on("error", () => resolve({}));
     req.end();
   });
@@ -82,6 +124,7 @@ function httpsPost(hostname, path, headers, body) {
     const data = Buffer.from(JSON.stringify(body), "utf8");
     const req = https.request({
       hostname, path, method: "POST",
+      timeout: ANTHROPIC_TIMEOUT_MS,
       headers: { ...headers, "Content-Length": data.length }
     }, (res) => {
       const chunks = [];
@@ -91,6 +134,7 @@ function httpsPost(hostname, path, headers, body) {
         catch { resolve({}); }
       });
     });
+    req.on("timeout", () => req.destroy(new Error("Request timed out")));
     req.on("error", reject);
     req.write(data);
     req.end();
@@ -166,16 +210,26 @@ export default async function handler(req, res) {
 
   // Etapa de login: verifica PIN no servidor e devolve um token assinado.
   if (body.action === "login") {
+    const ip = getClientIp(req);
+    if (isRateLimited(ip)) {
+      return res.status(429).json({ error: "Muitas tentativas. Aguarde alguns minutos e tente novamente." });
+    }
+
     const { role, pin } = body;
     const expected = PINS[role];
     if (!expected || typeof pin !== "string" || pin.length !== 4 || !PINS.hasOwnProperty(role)) {
+      registerFailedAttempt(ip);
       return res.status(401).json({ error: "Cargo ou senha invalidos." });
     }
     const a = Buffer.from(pin);
     const b = Buffer.from(expected);
     const ok = a.length === b.length && crypto.timingSafeEqual(a, b);
-    if (!ok) return res.status(401).json({ error: "Senha incorreta." });
+    if (!ok) {
+      registerFailedAttempt(ip);
+      return res.status(401).json({ error: "Senha incorreta." });
+    }
 
+    clearAttempts(ip);
     const token = sign({ role, exp: Date.now() + SESSION_TTL_MS });
     return res.status(200).json({ token, role });
   }
