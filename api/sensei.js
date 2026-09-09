@@ -5,6 +5,22 @@ const NOTION_VERSION = "2022-06-28";
 const ROOT_PAGE_ID = "36dff272-8546-812c-9cb9-e53d17c5ba77";
 
 const SESSION_TTL_MS = 4 * 60 * 60 * 1000; // 4 horas
+const NOTION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
+// Cache em memoria da instancia da funcao. Reduz buscas repetidas ao Notion
+// enquanto a instancia estiver quente, mas nao e compartilhado entre
+// instancias/regioes diferentes (limitacao do modelo serverless).
+let notionCache = { content: null, fetchedAt: 0 };
+
+async function getNotionContent(token) {
+  const now = Date.now();
+  if (notionCache.content && now - notionCache.fetchedAt < NOTION_CACHE_TTL_MS) {
+    return notionCache.content;
+  }
+  const content = await fetchTree(ROOT_PAGE_ID, token);
+  notionCache = { content, fetchedAt: now };
+  return content;
+}
 
 const PINS = {
   gerente: process.env.PIN_GERENTE,
@@ -184,7 +200,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Variaveis de ambiente nao configuradas." });
   }
 
-  const notionContent = await fetchTree(ROOT_PAGE_ID, TOKEN);
+  const notionContent = await getNotionContent(TOKEN);
 
   const accessDesc = {
     gerente: "GERENTE - acesso total a todas as informacoes da empresa.",
