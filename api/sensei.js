@@ -33,54 +33,70 @@ async function getNotionContent(token, role) {
 // mais restrito, para "repetir a base de conhecimento" (foi assim que o
 // vazamento original foi encontrado).
 
-// Colaborador: lista de PERMISSAO (so entra o que bate aqui).
+// Cada regra e um array de palavras/regexes que precisam TODAS aparecer no
+// titulo (em qualquer ordem, com qualquer conector entre elas - "e", "&",
+// etc). Isso evita depender do conector exato usado no titulo real do
+// Notion, que pode nao bater com a documentacao (foi exatamente essa
+// diferenca - "Unidades e Liderancas" vs. o "&" esperado - que deixou passar
+// um vazamento na primeira versao deste filtro).
+function titleMatchesRule(title, words) {
+  return words.every(re => re.test(title));
+}
+function titleMatchesAnyRule(title, rules) {
+  return rules.some(rule => titleMatchesRule(title, rule));
+}
+
+// Colaborador: lista de PERMISSAO (so entra o que bate em alguma regra aqui).
 const LIDERADO_ALLOW = [
-  /f[eé]rias/i,
-  /falta/i,
-  /atestado/i,
-  /\bponto\b/i,
-  /conduta/i,
-  /benef[ií]cio/i,
-  /aus[eê]ncia/i,
-  /disciplinar/i,
-  /cargo/i,
-  /pphos?/i,
-  /\bpop\b|procedimento operacional/i,
-  /manua(l|is)/i,
+  [/f[eé]rias/i],
+  [/falta/i],
+  [/atestado/i],
+  [/\bponto\b/i],
+  [/conduta/i],
+  [/benef[ií]cio/i],
+  [/aus[eê]ncia/i],
+  [/disciplinar/i],
+  [/cargo/i],
+  [/pphos?/i],
+  [/\bpop\b/i],
+  [/procedimento/i, /operacional/i],
+  [/manua(l|is)/i],
 ];
 
-// Lider: lista de BLOQUEIO (tudo entra, exceto isto) — sem dados financeiros
-// nem de estrutura/governanca estrategica.
+// Lider: lista de BLOQUEIO (tudo entra, exceto isto) — sem dados pessoais de
+// outros colaboradores, financeiros nem de estrutura/governanca estrategica.
 const RESTRICTED_FOR_LIDER = [
-  /governan[cç]a/i,
-  /organiza[cç][aã]o\s*&?\s*pessoas/i,
-  /unidades\s*&?\s*lideran[cç]as/i,
-  /gerencial/i,
-  /financeir/i,
-  /faturamento/i,
-  /\bdre\b/i,
-  /lucro|margem/i,
-  /societ[aá]rio/i,
+  [/governan[cç]a/i],
+  [/organiza[cç][aã]o/i, /pessoa/i],
+  [/unidade/i, /lideran[cç]a/i],
+  [/gerencial/i],
+  [/financeir/i],
+  [/faturamento/i],
+  [/\bdre\b/i],
+  [/lucro/i],
+  [/margem/i],
+  [/societ[aá]rio/i],
 ];
 
 // Administrativo: lista de BLOQUEIO, mais restrita que a do lider em RH/estrategia,
 // mas sem bloquear "financeiro" de forma ampla pois o cargo lida com contas a pagar.
 const RESTRICTED_FOR_ADMINISTRATIVO = [
-  /governan[cç]a/i,
-  /organiza[cç][aã]o\s*&?\s*pessoas/i,
-  /unidades\s*&?\s*lideran[cç]as/i,
-  /gerencial/i,
-  /\bdre\b/i,
-  /lucro|margem/i,
-  /societ[aá]rio/i,
+  [/governan[cç]a/i],
+  [/organiza[cç][aã]o/i, /pessoa/i],
+  [/unidade/i, /lideran[cç]a/i],
+  [/gerencial/i],
+  [/\bdre\b/i],
+  [/lucro/i],
+  [/margem/i],
+  [/societ[aá]rio/i],
 ];
 
 function roleAllowsSection(title, role) {
   if (role === "gerente") return true;
   if (!title) return true; // texto de nivel superior sem titulo proprio (introducao)
-  if (role === "liderado") return LIDERADO_ALLOW.some(re => re.test(title));
-  if (role === "lider") return !RESTRICTED_FOR_LIDER.some(re => re.test(title));
-  if (role === "administrativo") return !RESTRICTED_FOR_ADMINISTRATIVO.some(re => re.test(title));
+  if (role === "liderado") return titleMatchesAnyRule(title, LIDERADO_ALLOW);
+  if (role === "lider") return !titleMatchesAnyRule(title, RESTRICTED_FOR_LIDER);
+  if (role === "administrativo") return !titleMatchesAnyRule(title, RESTRICTED_FOR_ADMINISTRATIVO);
   return false;
 }
 
