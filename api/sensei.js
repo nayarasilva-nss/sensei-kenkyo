@@ -91,9 +91,18 @@ const RESTRICTED_FOR_ADMINISTRATIVO = [
   [/societ[aá]rio/i],
 ];
 
-function roleAllowsSection(title, role) {
+function roleAllowsSection(title, accessLevel, role) {
   if (role === "gerente") return true;
   if (!title) return true; // texto de nivel superior sem titulo proprio (introducao)
+  // Property "Nivel de acesso" do Notion tem prioridade sobre o titulo:
+  // valores reconhecidos: "gerente", "lider", "administrativo", "liderado"/"colaborador".
+  // Ex.: "lider" significa "visivel a partir de lider" (liderado NAO ve).
+  let level = accessLevel ? String(accessLevel).trim().toLowerCase() : null;
+  if (level === "colaborador" || level === "colaboradores") level = "liderado";
+  if (level && ["gerente", "lider", "administrativo", "liderado"].includes(level)) {
+    const order = { liderado: 0, lider: 1, administrativo: 1, gerente: 2 };
+    return order[role] >= order[level];
+  }
   if (role === "liderado") return titleMatchesAnyRule(title, LIDERADO_ALLOW);
   if (role === "lider") return !titleMatchesAnyRule(title, RESTRICTED_FOR_LIDER);
   if (role === "administrativo") return !titleMatchesAnyRule(title, RESTRICTED_FOR_ADMINISTRATIVO);
@@ -142,6 +151,18 @@ function registerFailedAttempt(ip) {
 
 function clearAttempts(ip) {
   loginAttempts.delete(ip);
+}
+
+// Log de auditoria leve (sem conteudo das mensagens): caber nos logs da
+// Vercel e permite rastrear uso/abuso sem armazenar conversas.
+function auditLog(acao, role, ip, extra = {}) {
+  console.log(JSON.stringify({
+    ts: new Date().toISOString(),
+    acao,
+    role,
+    ip: ip === "unknown" ? ip : ip.replace(/\d+$/, "x"), // ultima casa do IP oculta
+    ...extra
+  }));
 }
 
 function sign(payload) {
@@ -264,15 +285,44 @@ async function fetchPage(id, token) {
   } catch { return { text: "", children: [] }; }
 }
 
-async function fetchTree(id, token, depth = 0, role = "gerente", sectionTitle = null) {
+// Le a property "Nivel de acesso" de uma pagina filha (best-effort, com cache
+// em memoria para nao dobrar o numero de chamadas ao Notion).
+const pageAccessCache = new Map(); // pageId -> { level, fetchedAt }
+const PAGE_ACCESS_TTL_MS = 30 * 60 * 1000; // 30 minutos
+async function getPageAccessLevel(pageId, token) {
+  const now = Date.now();
+  const cached = pageAccessCache.get(pageId);
+  if (cached && now - cached.fetchedAt < PAGE_ACCESS_TTL_MS) return cached.level;
+  const data = await httpsGet(`/v1/pages/${pageId}`, token);
+  let level = null;
+  const props = data.properties || {};
+  for (const key of Object.keys(props)) {
+    if (!/n[\u00ed]vel de acesso/i.test(key)) continue;
+    const p = props[key];
+    if (p?.type === "select" && p.select?.name) level = p.select.name;
+    else if (p?.type === "multi_select" && Array.isArray(p.multi_select)) {
+      level = p.multi_select.map(o => o.name).join(",") || null;
+    } else if (p?.type === "rich_text" && Array.isArray(p.rich_text)) {
+      level = p.rich_text.map(t => t.plain_text).join("") || null;
+    }
+    break;
+  }
+  pageAccessCache.set(pageId, { level, fetchedAt: now });
+  return level;
+}
+
+async function fetchTree(id, token, depth = 0, role = "gerente", sectionTitle = null, accessLevel = null) {
   if (depth > 3) return "";
-  if (!roleAllowsSection(sectionTitle, role)) return "";
+  if (!roleAllowsSection(sectionTitle, accessLevel, role)) return "";
   const { text, children } = await fetchPage(id, token);
   let result = text;
   const limited = children.slice(0, depth < 2 ? 10 : 5);
   const childContents = await Promise.all(
-    limited.map(c => fetchTree(c.id, token, depth + 1, role, c.title || sectionTitle)
-      .then(content => content ? (c.title ? `\n--- ${c.title} ---\n${content}` : content) : ""))
+    limited.map(async c => {
+      const childAccess = await getPageAccessLevel(c.id, token);
+      return fetchTree(c.id, token, depth + 1, role, c.title || sectionTitle, childAccess)
+        .then(content => content ? (c.title ? `\n--- ${c.title} ---\n${content}` : content) : "");
+    })
   );
   result += childContents.filter(Boolean).join("\n");
   return result;
@@ -295,9 +345,14 @@ export default async function handler(req, res) {
     }
 
     const { role, pin } = body;
+    const VALID_ROLES = ["gerente", "lider", "liderado", "administrativo"];
     const expected = PINS[role];
-    if (!expected || typeof pin !== "string" || pin.length !== 4 || !PINS.hasOwnProperty(role)) {
+    if (
+      !VALID_ROLES.includes(role) ||
+      !expected || typeof pin !== "string" || pin.length < 4 || pin.length > 8 || !/^\d+$/.test(pin)
+    ) {
       registerFailedAttempt(ip);
+      auditLog("login_fail", role, ip, { motivo: "payload_invalido" });
       return res.status(401).json({ error: "Cargo ou senha invalidos." });
     }
     const a = Buffer.from(pin);
@@ -305,11 +360,13 @@ export default async function handler(req, res) {
     const ok = a.length === b.length && crypto.timingSafeEqual(a, b);
     if (!ok) {
       registerFailedAttempt(ip);
+      auditLog("login_fail", role, ip, { motivo: "senha_incorreta" });
       return res.status(401).json({ error: "Senha incorreta." });
     }
 
     clearAttempts(ip);
     const token = sign({ role, exp: Date.now() + SESSION_TTL_MS });
+    auditLog("login_ok", role, ip);
     return res.status(200).json({ token, role });
   }
 
@@ -321,8 +378,26 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "Sessao invalida ou expirada. Faca login novamente." });
   }
   const role = session.role;
+  const ip = getClientIp(req);
   const { messages } = body;
   if (!Array.isArray(messages)) {
+    return res.status(400).json({ error: "Mensagens invalidas." });
+  }
+
+  // Rate limit tambem no chat (evita abuso da API da Anthropic apos o login).
+  if (isRateLimited(ip)) {
+    return res.status(429).json({ error: "Muitas mensagens. Aguarde alguns minutos e tente novamente." });
+  }
+
+  // Controle de custo: limita tamanho de cada mensagem e o historico enviado
+  // (mantem as ultimas MAX_HISTORY_MESSAGES mensagens no request).
+  const MAX_MESSAGE_CHARS = 2000;
+  const MAX_HISTORY_MESSAGES = 12;
+  const sanitized = messages
+    .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+    .map(m => ({ role: m.role, content: m.content.slice(0, MAX_MESSAGE_CHARS) }))
+    .slice(-MAX_HISTORY_MESSAGES);
+  if (!sanitized.length) {
     return res.status(400).json({ error: "Mensagens invalidas." });
   }
 
@@ -366,7 +441,7 @@ Responda sempre em portugues brasileiro, de forma direta e acolhedora.`;
       model: "claude-sonnet-4-5",
       max_tokens: 1000,
       system,
-      messages
+      messages: sanitized
     });
 
     if (aiData.error) {
@@ -375,6 +450,7 @@ Responda sempre em portugues brasileiro, de forma direta e acolhedora.`;
     }
 
     const reply = aiData.content?.[0]?.text || "Erro ao processar resposta.";
+    auditLog("chat", role, ip, { perguntas: sanitized.filter(m => m.role === "user").length, tamResposta: reply.length });
     return res.status(200).json({ reply });
   } catch (e) {
     console.error("Sensei handler error:", e);

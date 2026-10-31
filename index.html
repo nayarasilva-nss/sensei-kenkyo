@@ -164,11 +164,16 @@ function updateDots(err){
 }
 
 function pk(d){
-  if(pin.length>=4||checkingPin)return;
+  if(pin.length>=8||checkingPin)return;
   pin+=d; updateDots(false);
-  if(pin.length===4)setTimeout(()=>confirmPin(),150);
+  if(pin.length===4)setTimeout(()=>{if(pin.length===4)confirmPin();},350);
 }
-function pd(){pin=pin.slice(0,-1);updateDots(false);document.getElementById('perr').textContent='';}
+function pd(){
+  pin=pin.slice(0,-1);
+  updateDots(false);
+  document.getElementById('perr').textContent='';
+  checkingPin=false; // digitando de novo cancela a verificacao pendente
+}
 
 async function confirmPin(){
   checkingPin=true;
